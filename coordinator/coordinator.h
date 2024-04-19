@@ -23,8 +23,37 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+struct job_info_client {
+  bool done;           /* Job has completed. */
+  bool failed;         /* Job has failed. */
+};
+
+struct args {
+  u_int args_len;
+	char *args_val;
+};
+struct files {
+  u_int files_len;
+	path *files_val;
+};
+struct job_info {
+  int job_id;
+  path output_dir;
+  char *app;
+  int n_reduce;
+  struct args *args;
+  struct files *files;
+
+  int num_mapped_assigned;
+  int num_map_completed;
+  int num_reduce_assigned;
+  int num_reduce_completed;
+  GList *failed_list;
+};
 typedef struct {
-  /* TODO */
+  int next_job_ID;
+  GQueue *job_queue;
+  GHashTable *hashmap;
 } coordinator;
 
 void coordinator_init(coordinator** coord_ptr);
