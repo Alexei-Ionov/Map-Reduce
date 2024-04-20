@@ -3,14 +3,29 @@
  */
 
 #include "coordinator.h"
-
+#include <stdio.h>
+#include <time.h>
+#include <unistd.h>
 #ifndef SIG_PF
 #define SIG_PF void (*)(int)
 #endif
 
+
 /* Global coordinator state. */
 coordinator* state;
 
+struct assigned_job {
+  int job_id;
+  time_t start;
+  int task;
+  path output_dir;
+  char *app;
+  int n_reduce;
+  int n_map;
+  struct args *args;
+  char* file;
+  bool reduce;
+};
 extern void coordinator_1(struct svc_req*, SVCXPRT*);
 
 /* Set up and run RPC server. */
@@ -79,14 +94,12 @@ int* submit_job_1_svc(submit_job_request* argp, struct svc_req* rqstp) {
   
   jb->output_dir = strdup(argp->output_dir);
   jb->app = strdup(argp->app);
-  /* initalize list array of files in job info struct*/
-  // jb->files = (struct files*) malloc(sizeof(argp->files));
+ 
   jb->files = malloc(sizeof(struct files));
   if (jb->files == NULL) {
     exit(-1);
   }
   jb->files->files_len = argp->files.files_len;
-  // jb->files->files_val = (path*)malloc(sizeof(argp->files.files_val));
   jb->files->files_val = malloc(argp->files.files_len * sizeof(path));
 
   for (int i = 0; i < argp->files.files_len; i++) {
@@ -145,28 +158,51 @@ void update_res(get_task_reply *result, struct job_info *jb) {
   result->app = strdup(jb->app);
   result->n_map = jb->files->files_len;
   result->n_reduce = jb->n_reduce;
-  // struct {
-  //   u_int args_len;
-  //   char *args_val;
-  // } args;
   result->args.args_len = jb->args->args_len;
   result->args.args_val = strdup(jb->args->args_val);
 }
 /* GET_TASK RPC implementation. */
+void insert_assigned(get_task_reply *result) {
+  struct assigned_job *aj = malloc(sizeof(struct assigned_job));
+  aj->job_id = result->job_id;
+  aj->start = time(NULL);
+  aj->task = result->task;
+  aj->output_dir = result->output_dir;
+  aj->app = result->app;
+  aj->n_reduce = result->n_reduce;
+  aj->n_map = result->n_map;
+  aj->args->args_len = result->args.args_len;
+  aj->args->args_val = result->args.args_val;
+  aj->file = result->file;
+  aj->reduce = result->reduce;
+  state->assigned_list = g_list_append(state->assigned_list , aj);
+}
 get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
   static get_task_reply result;
 
-  printf("Received get task request\n");
-  result.file = "";
-  result.output_dir = "";
-  result.app = "";
-  result.wait = true;
-  result.args.args_len = 0;
-  /* if no tasks can be serviced from empty queue then just return with wait set to true */
-  if (g_queue_is_empty(state->job_queue)) {
-    return &result;
-  }
   GList *iter;
+  struct assigned_job *curr;
+  /* first check if any tasks can be taken up that had previously timed out */
+  for (iter = state->assigned_list; iter != NULL; iter = iter->next) {
+    curr = iter->data;
+    if (time(NULL) - curr->start >= TASK_TIMEOUT_SECS) {
+      result.job_id = curr->job_id;
+      result.task = curr->task;
+      result.file = strdup(curr->file);
+      result.output_dir = strdup(curr->output_dir);
+      result.app = strdup(curr->app);
+      result.n_map = curr->n_map;
+      result.n_reduce = curr->n_reduce;
+      result.reduce = curr->reduce;
+      result.wait = false;
+      result.args.args_len = curr->args->args_len;
+      result.args.args_val = strdup(curr->args->args_val);
+      g_list_remove(state->assigned_list, curr);
+      return &result;
+    }
+  }
+
+  
   struct job_info *jb;
   result.wait = false;
   for (iter = state->job_queue->head; iter != NULL; iter = iter->next) {
@@ -181,33 +217,31 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
       } else { 
         int *task = g_list_nth_data(jb->failed_list, 0);
         g_list_remove(jb->failed_list, task);
-        // int *task = g_list_remove(jb->failed_list, g_list_first(jb->failed_list));
         result.task = *task;
       }
       result.file = strdup(jb->files->files_val[result.task]);
       result.reduce = false;
       update_res(&result, jb);
+      insert_assigned(&result);
       return &result;
     }    
     /* if we are on the reduce phase for this job */
     if (jb->num_map_completed == jb->files->files_len) {
+      result.reduce = true;
+      update_res(&result, jb);
       if (jb->num_reduce_assigned < jb->n_reduce) {
         result.task = jb->num_reduce_assigned;
-        result.reduce = true;
         jb->num_reduce_assigned += 1;
-        update_res(&result, jb);
-        return &result;
       }
       /* if there exists any failed workers. note that we don't need to check whether completed is less than since at this point we are only concerned with hte reduction phase*/
       if (g_list_length(jb->failed_list)) {
         int *task = g_list_nth_data(jb->failed_list, 0);
         g_list_remove(jb->failed_list, task);
-        // int *task = g_list_remove(jb->failed_list, g_list_first(jb->failed_list));
         result.task = *task;
-        result.reduce = true;
-        update_res(&result, jb);
-        return &result;
       }
+      result.file = "";
+      insert_assigned(&result);
+      return &result;
     }
   }
   result.file = "";
@@ -236,7 +270,10 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
         }
       /* need to add task to failed list*/
       } else { 
-        g_list_append(jb->failed_list, GINT_TO_POINTER(argp->task));
+        struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
+        jbc->done = true;
+        jbc->failed = true;
+        //re-insert into hashtable?
       }
       if (jb->num_reduce_completed == jb->n_reduce) {
         /* remove from list*/
@@ -271,4 +308,5 @@ void coordinator_init(coordinator** coord_ptr) {
   coord->next_job_ID = 0;
   coord->job_queue = g_queue_new();
   coord->hashmap = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+  coord->assigned_list = NULL;
 }

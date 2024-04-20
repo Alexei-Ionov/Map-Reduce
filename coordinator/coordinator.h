@@ -43,7 +43,6 @@ struct job_info {
   int n_reduce;
   struct args *args;
   struct files *files;
-
   int num_mapped_assigned;
   int num_map_completed;
   int num_reduce_assigned;
@@ -54,6 +53,7 @@ typedef struct {
   int next_job_ID;
   GQueue *job_queue;
   GHashTable *hashmap;
+  GList *assigned_list;
 } coordinator;
 
 void coordinator_init(coordinator** coord_ptr);
