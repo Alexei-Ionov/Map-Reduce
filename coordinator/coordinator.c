@@ -244,6 +244,11 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
       if (jb->num_reduce_completed == jb->n_reduce) {
         /* remove from list*/
         g_queue_delete_link(state->job_queue, iter);
+        struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
+        jbc->done = true;
+        jbc->failed = false;
+        
+
         // free_jb_struct(jb);
       }
       break;
