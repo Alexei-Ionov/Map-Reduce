@@ -61,11 +61,6 @@ int* submit_job_1_svc(submit_job_request* argp, struct svc_req* rqstp) {
   static int result;
 
   printf("Received submit job request\n");
-
-  /* TODO */
-
-  /* Do not modify the following code. */
-  /* BEGIN */
   struct stat st;
   if (stat(argp->output_dir, &st) == -1) {
     mkdirp(argp->output_dir);
@@ -76,7 +71,7 @@ int* submit_job_1_svc(submit_job_request* argp, struct svc_req* rqstp) {
     result = -1;
     return &result;
   }
-  
+ 
   struct job_info *jb = malloc(sizeof(struct job_info));
 
   jb->job_id = state->next_job_ID;
@@ -85,15 +80,30 @@ int* submit_job_1_svc(submit_job_request* argp, struct svc_req* rqstp) {
   jb->output_dir = strdup(argp->output_dir);
   jb->app = strdup(argp->app);
   /* initalize list array of files in job info struct*/
-  jb->files = (struct files*) malloc(sizeof(argp->files));
+  // jb->files = (struct files*) malloc(sizeof(argp->files));
+  jb->files = malloc(sizeof(struct files));
+  if (jb->files == NULL) {
+    printf("failed malloc\n");
+    exit(-1);
+  }
   jb->files->files_len = argp->files.files_len;
+  // jb->files->files_val = (path*)malloc(sizeof(argp->files.files_val));
+  jb->files->files_val = malloc(argp->files.files_len * sizeof(path));
+
   for (int i = 0; i < argp->files.files_len; i++) {
     jb->files->files_val[i] = strdup(argp->files.files_val[i]);
   }
+
   jb->n_reduce = argp->n_reduce;
-  jb->args = (struct args *) malloc(sizeof(argp->args));
+
+  jb->args = (struct args *) malloc(sizeof(struct args));
+
   jb->args->args_len = argp->args.args_len;
-  jb->args->args_val = strdup(argp->args.args_val);
+
+  jb->args->args_val = malloc(argp->args.args_len + 1);
+  memcpy(jb->args->args_val, argp->args.args_val, argp->args.args_len);
+  jb->args->args_val[argp->args.args_len] = '\0';
+
 
   jb->num_mapped_assigned = 0;
   jb->num_map_completed = 0;
@@ -116,7 +126,7 @@ int* submit_job_1_svc(submit_job_request* argp, struct svc_req* rqstp) {
 poll_job_reply* poll_job_1_svc(int* argp, struct svc_req* rqstp) {
   static poll_job_reply result;
 
-  printf("Received poll job request\n");
+  // printf("Received poll job request\n");
   struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(*argp));
   
   if (jbc == NULL) {
@@ -162,7 +172,7 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
   result.wait = false;
   for (iter = state->job_queue->head; iter != NULL; iter = iter->next) {
     jb = iter->data;
-    update_res(&result, jb);
+    
     /* if we can process the mapping phase still*/
     if (jb->num_mapped_assigned < jb->files->files_len || jb->num_map_completed < jb->files->files_len && g_list_length(jb->failed_list)) {
       /* if we have more mapping to assign*/
@@ -175,16 +185,19 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
         // int *task = g_list_remove(jb->failed_list, g_list_first(jb->failed_list));
         result.task = *task;
       }
+      printf("file : %s\n", jb->files->files_val[result.task]);
       result.file = strdup(jb->files->files_val[result.task]);
       result.reduce = false;
+      update_res(&result, jb);
       return &result;
     }    
     /* if we are on the reduce phase for this job */
     if (jb->num_map_completed == jb->files->files_len) {
       if (jb->num_reduce_assigned < jb->n_reduce) {
-        result.task = jb->num_mapped_assigned;
+        result.task = jb->num_reduce_assigned;
         result.reduce = true;
-        jb->num_mapped_assigned += 1;
+        jb->num_reduce_assigned += 1;
+        update_res(&result, jb);
         return &result;
       }
       /* if there exists any failed workers. note that we don't need to check whether completed is less than since at this point we are only concerned with hte reduction phase*/
@@ -194,19 +207,24 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
         // int *task = g_list_remove(jb->failed_list, g_list_first(jb->failed_list));
         result.task = *task;
         result.reduce = true;
+        update_res(&result, jb);
         return &result;
       }
     }
   }
+  result.file = "";
+  result.output_dir = "";
+  result.app = "";
   result.wait = true;
+  result.args.args_len = 0;
   return &result;
 }
 
 /* FINISH_TASK RPC implementation. */
 void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   static char* result;
-
   printf("Received finish task request\n");
+  printf("task status: %d\n", argp->success);
   GList *iter;
   struct job_info *jb;
   for (iter = state->job_queue->head; iter != NULL; iter = iter->next) {
