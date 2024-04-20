@@ -71,7 +71,7 @@ int* submit_job_1_svc(submit_job_request* argp, struct svc_req* rqstp) {
     result = -1;
     return &result;
   }
- 
+
   struct job_info *jb = malloc(sizeof(struct job_info));
 
   jb->job_id = state->next_job_ID;
@@ -83,7 +83,6 @@ int* submit_job_1_svc(submit_job_request* argp, struct svc_req* rqstp) {
   // jb->files = (struct files*) malloc(sizeof(argp->files));
   jb->files = malloc(sizeof(struct files));
   if (jb->files == NULL) {
-    printf("failed malloc\n");
     exit(-1);
   }
   jb->files->files_len = argp->files.files_len;
@@ -126,7 +125,7 @@ int* submit_job_1_svc(submit_job_request* argp, struct svc_req* rqstp) {
 poll_job_reply* poll_job_1_svc(int* argp, struct svc_req* rqstp) {
   static poll_job_reply result;
 
-  // printf("Received poll job request\n");
+  printf("Received poll job request\n");
   struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(*argp));
   
   if (jbc == NULL) {
@@ -146,12 +145,12 @@ void update_res(get_task_reply *result, struct job_info *jb) {
   result->app = strdup(jb->app);
   result->n_map = jb->files->files_len;
   result->n_reduce = jb->n_reduce;
-  struct {
-    u_int args_len;
-    char *args_val;
-  } args;
-  args.args_len = jb->args->args_len;
-  args.args_val = strdup(jb->args->args_val);
+  // struct {
+  //   u_int args_len;
+  //   char *args_val;
+  // } args;
+  result->args.args_len = jb->args->args_len;
+  result->args.args_val = strdup(jb->args->args_val);
 }
 /* GET_TASK RPC implementation. */
 get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
@@ -185,7 +184,6 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
         // int *task = g_list_remove(jb->failed_list, g_list_first(jb->failed_list));
         result.task = *task;
       }
-      printf("file : %s\n", jb->files->files_val[result.task]);
       result.file = strdup(jb->files->files_val[result.task]);
       result.reduce = false;
       update_res(&result, jb);
@@ -224,7 +222,6 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
 void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   static char* result;
   printf("Received finish task request\n");
-  printf("task status: %d\n", argp->success);
   GList *iter;
   struct job_info *jb;
   for (iter = state->job_queue->head; iter != NULL; iter = iter->next) {
@@ -247,8 +244,7 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
         struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
         jbc->done = true;
         jbc->failed = false;
-        
-
+        g_hash_table_insert(state->hashmap, GINT_TO_POINTER(jb->job_id), jbc);
         // free_jb_struct(jb);
       }
       break;
