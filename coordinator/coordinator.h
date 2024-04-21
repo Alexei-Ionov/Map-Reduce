@@ -47,7 +47,6 @@ struct job_info {
   int num_map_completed;
   int num_reduce_assigned;
   int num_reduce_completed;
-  GList *failed_list;
 };
 typedef struct {
   int next_job_ID;
