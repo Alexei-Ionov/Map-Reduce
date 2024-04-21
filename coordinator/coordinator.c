@@ -96,9 +96,6 @@ int* submit_job_1_svc(submit_job_request* argp, struct svc_req* rqstp) {
   jb->app = strdup(argp->app);
  
   jb->files = malloc(sizeof(struct files));
-  if (jb->files == NULL) {
-    exit(-1);
-  }
   jb->files->files_len = argp->files.files_len;
   jb->files->files_val = malloc(argp->files.files_len * sizeof(path));
 
@@ -138,7 +135,7 @@ int* submit_job_1_svc(submit_job_request* argp, struct svc_req* rqstp) {
 poll_job_reply* poll_job_1_svc(int* argp, struct svc_req* rqstp) {
   static poll_job_reply result;
 
-  printf("Received poll job request\n");
+  // printf("Received poll job request\n");
   struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(*argp));
   
   if (jbc == NULL) {
@@ -185,6 +182,7 @@ void insert_assigned(get_task_reply *result) {
   aj->app = strdup(result->app);
   aj->n_reduce = result->n_reduce;
   aj->n_map = result->n_map;
+  aj->args = malloc(sizeof(struct args));
   aj->args->args_len = result->args.args_len;
   aj->args->args_val = strdup(result->args.args_val);
   aj->file = strdup(result->file);
@@ -193,13 +191,16 @@ void insert_assigned(get_task_reply *result) {
 }
 get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
   static get_task_reply result;
+  printf("Received get task request\n");
 
   GList *iter;
   struct assigned_job *curr;
+  
   /* first check if any tasks can be taken up that had previously timed out */
   for (iter = state->assigned_list; iter != NULL; iter = iter->next) {
     curr = iter->data;
-    if (time(NULL) - curr->start >= TASK_TIMEOUT_SECS) {
+    if (time(NULL) - curr->start > TASK_TIMEOUT_SECS) {
+      printf("pass1\n");
       result.job_id = curr->job_id;
       result.task = curr->task;
       result.file = strdup(curr->file);
@@ -216,7 +217,10 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
     }
   }
 
-  
+  result.file = "";
+  result.output_dir = "";
+  result.app = "";
+  result.args.args_len = 0;
   struct job_info *jb;
   result.wait = false;
   for (iter = state->job_queue->head; iter != NULL; iter = iter->next) {
@@ -234,11 +238,11 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
     }    
     /* if we are on the reduce phase for this job */
     if (jb->num_map_completed == jb->files->files_len) {
-      result.reduce = true;
-      update_res(&result, jb);
       result.task = jb->num_reduce_assigned;
       jb->num_reduce_assigned += 1;
+      result.reduce = true;
       result.file = "";
+      update_res(&result, jb);
       insert_assigned(&result);
       return &result;
     }
@@ -263,7 +267,7 @@ GList* get_iter(int desired_id) {
   return NULL;
 }
 
-void remove_assigned_node(int task_id, int job_id) {
+void remove_assigned_node(int job_id, int task_id) {
   GList *iter;
   struct assigned_job *aj;
   for (iter = state->assigned_list; iter != NULL; iter = iter->next) {
@@ -280,6 +284,10 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   static char* result;
   printf("Received finish task request\n");
   GList *iter = get_iter(argp->job_id);
+  /* in the case where a task has already failed for this job */
+  if (iter == NULL) {
+    return (void*)&result;
+  }
   struct job_info *jb = iter->data;
   if (!argp->success) {
     struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
@@ -290,7 +298,6 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
     g_queue_delete_link(state->job_queue, iter);
     return (void*)&result;
   }
-
   remove_assigned_node(argp->job_id, argp->task);
 
   if (jb->num_map_completed != jb->files->files_len) {
