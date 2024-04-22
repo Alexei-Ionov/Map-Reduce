@@ -213,21 +213,16 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
   //     return &result;
   //   }
   // }
-
-  result.file = "";
-  result.output_dir = "";
-  result.app = "";
-  result.args.args_len = 0;
   struct job_info *jb;
-  result.wait = false;
   for (iter = state->job_queue->head; iter != NULL; iter = iter->next) {
     jb = iter->data;
-    
     /* if we can process the mapping phase still*/
     if (jb->num_mapped_assigned < jb->files->files_len) {
       result.task = jb->num_mapped_assigned;
       jb->num_mapped_assigned += 1;
       result.file = strdup(jb->files->files_val[result.task]);
+      result.reduce = false;
+      result.wait = false;
       update_res(&result, jb);
       insert_assigned(&result);
       return &result;
@@ -237,6 +232,8 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
       result.task = jb->num_reduce_assigned;
       jb->num_reduce_assigned += 1;
       result.file = "";
+      result.reduce = true;
+      result.wait = false;
       update_res(&result, jb);
       insert_assigned(&result);
       return &result;
