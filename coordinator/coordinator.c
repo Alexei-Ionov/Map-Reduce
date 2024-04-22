@@ -183,17 +183,19 @@ void insert_assigned(struct job_info *jb, int task_id, bool reduce) {
   aj->args = malloc(sizeof(struct args));
   aj->args->args_len = jb->args->args_len;
   aj->args->args_val = strdup(jb->args->args_val);
-  aj->file = strdup(jb->files->files_val[task_id]);
+  if (!reduce) {
+    aj->file = strdup(jb->files->files_val[task_id]);
+  } else {
+    aj->file = "";
+  }
   aj->reduce = reduce;
   state->assigned_list = g_list_append(state->assigned_list , aj);
 }
 get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
   static get_task_reply result;
   printf("Received get task request\n");
-
   GList *iter;
   struct assigned_job *curr;
-  
   /* first check if any tasks can be taken up that had previously timed out */
   for (iter = state->assigned_list; iter != NULL; iter = iter->next) {
     curr = iter->data;
