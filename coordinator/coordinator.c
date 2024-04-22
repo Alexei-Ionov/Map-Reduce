@@ -233,13 +233,12 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
       return &result;
     }    
     /* if we are on the reduce phase for this job */
-    if (jb->num_map_completed == jb->files->files_len) {
-      result.task = jb->num_reduce_assigned;
-      jb->num_reduce_assigned += 1;
-      result.file = "";
-      update_res(&result, jb);
-      insert_assigned(&result);
-      return &result;
+    result.task = jb->num_reduce_assigned;
+    jb->num_reduce_assigned += 1;
+    result.file = "";
+    update_res(&result, jb);
+    insert_assigned(&result);
+    return &result;
     }
   }
   result.file = "";
@@ -282,13 +281,13 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   if (iter == NULL) {
     return (void*)&result;
   }
-  GList *iter2 = get_iter_assigned(argp->job_id, argp->task);
-  if (iter2) { 
-    state->assigned_list = g_list_delete_link(state->assigned_list, iter2);
-  } else { 
-    /* case where we re-assigned this task */
-    return (void*)&result;
-  }
+  // GList *iter2 = get_iter_assigned(argp->job_id, argp->task);
+  // if (iter2) { 
+  //   state->assigned_list = g_list_delete_link(state->assigned_list, iter2);
+  // } else { 
+  //   /* case where we re-assigned this task */
+  //   return (void*)&result;
+  // }
   struct job_info *jb = iter->data;
   if (!argp->success) {
     struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
