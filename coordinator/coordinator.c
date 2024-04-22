@@ -195,24 +195,24 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
   struct assigned_job *curr;
   
   /* first check if any tasks can be taken up that had previously timed out */
-  for (iter = state->assigned_list; iter != NULL; iter = iter->next) {
-    curr = iter->data;
-    if ((time(NULL) - curr->start) > TASK_TIMEOUT_SECS) {
-      result.job_id = curr->job_id;
-      result.task = curr->task;
-      result.file = strdup(curr->file);
-      result.output_dir = strdup(curr->output_dir);
-      result.app = strdup(curr->app);
-      result.n_map = curr->n_map;
-      result.n_reduce = curr->n_reduce;
-      result.reduce = curr->reduce;
-      result.wait = false;
-      result.args.args_len = curr->args->args_len;
-      result.args.args_val = strdup(curr->args->args_val);
-      curr->start = time(NULL);
-      return &result;
-    }
-  }
+  // for (iter = state->assigned_list; iter != NULL; iter = iter->next) {
+  //   curr = iter->data;
+  //   if ((time(NULL) - curr->start) > TASK_TIMEOUT_SECS) {
+  //     result.job_id = curr->job_id;
+  //     result.task = curr->task;
+  //     result.file = strdup(curr->file);
+  //     result.output_dir = strdup(curr->output_dir);
+  //     result.app = strdup(curr->app);
+  //     result.n_map = curr->n_map;
+  //     result.n_reduce = curr->n_reduce;
+  //     result.reduce = curr->reduce;
+  //     result.wait = false;
+  //     result.args.args_len = curr->args->args_len;
+  //     result.args.args_val = strdup(curr->args->args_val);
+  //     curr->start = time(NULL);
+  //     return &result;
+  //   }
+  // }
 
   result.file = "";
   result.output_dir = "";
