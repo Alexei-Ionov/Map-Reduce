@@ -134,8 +134,6 @@ int* submit_job_1_svc(submit_job_request* argp, struct svc_req* rqstp) {
 /* POLL_JOB RPC implementation. */
 poll_job_reply* poll_job_1_svc(int* argp, struct svc_req* rqstp) {
   static poll_job_reply result;
-
-  // printf("Received poll job request\n");
   struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(*argp));
   
   if (jbc == NULL) {
@@ -199,8 +197,7 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
   /* first check if any tasks can be taken up that had previously timed out */
   for (iter = state->assigned_list; iter != NULL; iter = iter->next) {
     curr = iter->data;
-    if (time(NULL) - curr->start > TASK_TIMEOUT_SECS) {
-      printf("pass??\n");
+    if ((time(NULL) - curr->start) > TASK_TIMEOUT_SECS) {
       result.job_id = curr->job_id;
       result.task = curr->task;
       result.file = strdup(curr->file);
@@ -231,7 +228,6 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
       result.task = jb->num_mapped_assigned;
       jb->num_mapped_assigned += 1;
       result.file = strdup(jb->files->files_val[result.task]);
-      result.reduce = false;
       update_res(&result, jb);
       insert_assigned(&result);
       return &result;
@@ -240,7 +236,6 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
     if (jb->num_map_completed == jb->files->files_len) {
       result.task = jb->num_reduce_assigned;
       jb->num_reduce_assigned += 1;
-      result.reduce = true;
       result.file = "";
       update_res(&result, jb);
       insert_assigned(&result);
@@ -287,7 +282,13 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   if (iter == NULL) {
     return (void*)&result;
   }
-
+  GList *iter2 = get_iter_assigned(argp->job_id, argp->task);
+  if (iter2) { 
+    state->assigned_list = g_list_delete_link(state->assigned_list, iter2);
+  } else { 
+    /* case where we re-assigned this task */
+    return (void*)&result;
+  }
   struct job_info *jb = iter->data;
   if (!argp->success) {
     struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
@@ -296,13 +297,7 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
     /* remove from list of jobs so no other workers get it assigned to them*/
     clean_assigned_list(argp->job_id);
     g_queue_delete_link(state->job_queue, iter);
-    return (void*)&result;
-  }
-  iter = get_iter_assigned(argp->job_id, argp->task);
-  if (iter) { 
-    state->assigned_list = g_list_delete_link(state->assigned_list, iter);
-  } else { 
-    /* case where we re-assigned this task */
+    g_hash_table_insert(state->hashmap, GINT_TO_POINTER(jb->job_id), jbc);
     return (void*)&result;
   }
   if (jb->num_map_completed != jb->files->files_len) {
