@@ -200,7 +200,7 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
   for (iter = state->assigned_list; iter != NULL; iter = iter->next) {
     curr = iter->data;
     if (time(NULL) - curr->start > TASK_TIMEOUT_SECS) {
-      printf("pass1\n");
+      printf("pass??\n");
       result.job_id = curr->job_id;
       result.task = curr->task;
       result.file = strdup(curr->file);
@@ -267,18 +267,17 @@ GList* get_iter(int desired_id) {
   return NULL;
 }
 
-void remove_assigned_node(int job_id, int task_id) {
+
+GList* get_iter_assigned(int job_id, int task_id) {
   GList *iter;
   struct assigned_job *aj;
   for (iter = state->assigned_list; iter != NULL; iter = iter->next) {
     aj = iter->data;
     if (aj->job_id == job_id && aj->task == task_id) {
-      state->assigned_list = g_list_delete_link(state->assigned_list, iter);
-      return;
+      return iter;
     }
   }
 }
-
 /* FINISH_TASK RPC implementation. */
 void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   static char* result;
@@ -288,6 +287,7 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   if (iter == NULL) {
     return (void*)&result;
   }
+
   struct job_info *jb = iter->data;
   if (!argp->success) {
     struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
@@ -298,8 +298,13 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
     g_queue_delete_link(state->job_queue, iter);
     return (void*)&result;
   }
-  remove_assigned_node(argp->job_id, argp->task);
-
+  iter = get_iter_assigned(argp->job_id, argp->task);
+  if (iter) { 
+    state->assigned_list = g_list_delete_link(state->assigned_list, iter);
+  } else { 
+    /* case where we re-assigned this task */
+    return (void*)&result;
+  }
   if (jb->num_map_completed != jb->files->files_len) {
     jb->num_map_completed += 1;
   } else if (jb->num_reduce_completed != jb->n_reduce) {
