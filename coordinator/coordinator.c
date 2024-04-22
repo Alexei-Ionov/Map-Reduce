@@ -233,12 +233,13 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
       return &result;
     }    
     /* if we are on the reduce phase for this job */
-    result.task = jb->num_reduce_assigned;
-    jb->num_reduce_assigned += 1;
-    result.file = "";
-    update_res(&result, jb);
-    insert_assigned(&result);
-    return &result;
+    if (jb->num_map_completed == jb->files->files_len && jb->num_reduce_assigned < jb->n_reduce) {
+      result.task = jb->num_reduce_assigned;
+      jb->num_reduce_assigned += 1;
+      result.file = "";
+      update_res(&result, jb);
+      insert_assigned(&result);
+      return &result;
     }
   }
   result.file = "";
