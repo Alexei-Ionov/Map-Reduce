@@ -274,7 +274,12 @@ GList* get_iter_assigned(int job_id, int task_id) {
 }
 /* FINISH_TASK RPC implementation. */
 void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
+  
   static char* result;
+  struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(argp->job_id));
+  if (jbc->done) {
+    return (void*)&result;
+  }
   printf("Received finish task request\n");
   GList *iter = get_iter(argp->job_id);
   /* in the case where a task has already failed for this job */
