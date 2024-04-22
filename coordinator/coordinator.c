@@ -171,20 +171,20 @@ void clean_assigned_list(int job_id_to_delete) {
   }
 }
 /* GET_TASK RPC implementation. */
-void insert_assigned(get_task_reply *result) {
+void insert_assigned(struct job_info *jb, int task_id, bool reduce) {
   struct assigned_job *aj = malloc(sizeof(struct assigned_job));
-  aj->job_id = result->job_id;
+  aj->job_id = jb->job_id;
   aj->start = time(NULL);
-  aj->task = result->task;
-  aj->output_dir = strdup(result->output_dir);
-  aj->app = strdup(result->app);
-  aj->n_reduce = result->n_reduce;
-  aj->n_map = result->n_map;
+  aj->task = task_id;
+  aj->output_dir = strdup(jb->output_dir);
+  aj->app = strdup(jb->app);
+  aj->n_reduce = jb->n_reduce;
+  aj->n_map = jb->files->files_len;
   aj->args = malloc(sizeof(struct args));
-  aj->args->args_len = result->args.args_len;
-  aj->args->args_val = strdup(result->args.args_val);
-  aj->file = strdup(result->file);
-  aj->reduce = result->reduce;
+  aj->args->args_len = jb->args->args_len;
+  aj->args->args_val = strdup(jb->args->args_val);
+  aj->file = strdup(jb->files->files_val[task_id]);
+  aj->reduce = reduce;
   state->assigned_list = g_list_append(state->assigned_list , aj);
 }
 get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
@@ -224,7 +224,7 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
       result.reduce = false;
       result.wait = false;
       update_res(&result, jb);
-      insert_assigned(&result);
+      insert_assigned(jb, result.task, false);
       return &result;
     }    
     /* if we are on the reduce phase for this job */
@@ -235,7 +235,7 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
       result.reduce = true;
       result.wait = false;
       update_res(&result, jb);
-      insert_assigned(&result);
+      insert_assigned(jb, result.task, true);
       return &result;
     }
   }
