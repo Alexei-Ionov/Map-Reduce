@@ -287,18 +287,18 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   // } 
   
   struct job_info *jb = iter->data;
-  // if (!argp->success) {
-  //   struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
-  //   jbc->done = true;
-  //   jbc->failed = true;
-  //   /* remove all running tasks that are under this job that way they cannot get reassigned */
-  //   // clean_assigned_list(argp->job_id);
-  //   /*remove job from list of possible jobs to get queued up for */
-  //   g_queue_delete_link(state->job_queue, iter);
-  //   /* in reality, this is unecessary */
-  //   // g_hash_table_insert(state->hashmap, GINT_TO_POINTER(jb->job_id), jbc);
-  //   return (void*)&result;
-  // }
+  if (!argp->success) {
+    struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
+    jbc->done = true;
+    jbc->failed = true;
+    /* remove all running tasks that are under this job that way they cannot get reassigned */
+    // clean_assigned_list(argp->job_id);
+    /*remove job from list of possible jobs to get queued up for */
+    g_queue_delete_link(state->job_queue, iter);
+    /* in reality, this is unecessary */
+    // g_hash_table_insert(state->hashmap, GINT_TO_POINTER(jb->job_id), jbc);
+    return (void*)&result;
+  }
   if (jb->num_map_completed != jb->files->files_len) {
     jb->num_map_completed += 1;
   } else if (jb->num_reduce_completed != jb->n_reduce) {
