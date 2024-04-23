@@ -137,8 +137,8 @@ poll_job_reply* poll_job_1_svc(int* argp, struct svc_req* rqstp) {
   struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(*argp));
   
   if (jbc == NULL) {
-    result.done = false;
-    result.failed = false;
+    result.done = true;
+    result.failed = true;
     result.invalid_job_id = true;
   } else { 
     result.done = jbc->done;
