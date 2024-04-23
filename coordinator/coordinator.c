@@ -287,9 +287,8 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   if (iter2) { 
     /* remove the task from currently running tasks */
     state->assigned_list = g_list_delete_link(state->assigned_list, iter2);
-  } else { 
-    return (void*)&result;
-  }
+  } 
+  
   struct job_info *jb = iter->data;
   if (!argp->success) {
     struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
@@ -300,7 +299,7 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
     /*remove job from list of possible jobs to get queued up for */
     g_queue_delete_link(state->job_queue, iter);
     /* in reality, this is unecessary */
-    g_hash_table_insert(state->hashmap, GINT_TO_POINTER(jb->job_id), jbc);
+    // g_hash_table_insert(state->hashmap, GINT_TO_POINTER(jb->job_id), jbc);
     return (void*)&result;
   }
   if (jb->num_map_completed != jb->files->files_len) {
@@ -314,7 +313,7 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
     struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
     jbc->done = true;
     jbc->failed = false;
-    g_hash_table_insert(state->hashmap, GINT_TO_POINTER(jb->job_id), jbc);
+    // g_hash_table_insert(state->hashmap, GINT_TO_POINTER(jb->job_id), jbc);
   }
   return (void*)&result;
 }
