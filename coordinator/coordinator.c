@@ -157,7 +157,7 @@ void update_res(get_task_reply *result, struct job_info *jb) {
   result->args.args_val = strdup(jb->args->args_val);
 }
 void clean_assigned_list(int job_id_to_delete) {
-  GList *iter;
+  GList *iter = state->assigned_list;
   struct assigned_job *aj;
   while (iter != NULL) {
     aj = iter->data;
@@ -198,23 +198,23 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
   struct assigned_job *curr;
   result.wait = false;
   /* first check if any tasks can be taken up that had previously timed out */
-  // for (iter = state->assigned_list; iter != NULL; iter = iter->next) {
-  //   curr = iter->data;
-  //   if ((time(NULL) - curr->start) > TASK_TIMEOUT_SECS) {
-  //     result.job_id = curr->job_id;
-  //     result.task = curr->task;
-  //     result.file = strdup(curr->file);
-  //     result.output_dir = strdup(curr->output_dir);
-  //     result.app = strdup(curr->app);
-  //     result.n_map = curr->n_map;
-  //     result.n_reduce = curr->n_reduce;
-  //     result.reduce = curr->reduce;
-  //     result.args.args_len = curr->args->args_len;
-  //     result.args.args_val = strdup(curr->args->args_val);
-  //     curr->start = time(NULL);
-  //     return &result;
-  //   }
-  // }
+  for (iter = state->assigned_list; iter != NULL; iter = iter->next) {
+    curr = iter->data;
+    if ((time(NULL) - curr->start) > TASK_TIMEOUT_SECS) {
+      result.job_id = curr->job_id;
+      result.task = curr->task;
+      result.file = strdup(curr->file);
+      result.output_dir = strdup(curr->output_dir);
+      result.app = strdup(curr->app);
+      result.n_map = curr->n_map;
+      result.n_reduce = curr->n_reduce;
+      result.reduce = curr->reduce;
+      result.args.args_len = curr->args->args_len;
+      result.args.args_val = strdup(curr->args->args_val);
+      curr->start = time(NULL);
+      return &result;
+    }
+  }
   struct job_info *jb;
   for (iter = state->job_queue->head; iter != NULL; iter = iter->next) {
     jb = iter->data;
@@ -280,11 +280,11 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   if (iter == NULL) {
     return (void*)&result;
   }
-  // GList *iter2 = get_iter_assigned(argp->job_id, argp->task);
-  // if (iter2) { 
-  //   /* remove the task from currently running tasks */
-  //   state->assigned_list = g_list_delete_link(state->assigned_list, iter2);
-  // } 
+  GList *iter2 = get_iter_assigned(argp->job_id, argp->task);
+  if (iter2) { 
+    /* remove the task from currently running tasks */
+    state->assigned_list = g_list_delete_link(state->assigned_list, iter2);
+  } 
   
   struct job_info *jb = iter->data;
   if (!argp->success) {
@@ -292,11 +292,9 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
     jbc->done = true;
     jbc->failed = true;
     /* remove all running tasks that are under this job that way they cannot get reassigned */
-    // clean_assigned_list(argp->job_id);
+    clean_assigned_list(argp->job_id);
     /*remove job from list of possible jobs to get queued up for */
     g_queue_delete_link(state->job_queue, iter);
-    /* in reality, this is unecessary */
-    // g_hash_table_insert(state->hashmap, GINT_TO_POINTER(jb->job_id), jbc);
     return (void*)&result;
   }
   if (jb->num_map_completed != jb->files->files_len) {
@@ -310,7 +308,6 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
     struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
     jbc->done = true;
     jbc->failed = false;
-    // g_hash_table_insert(state->hashmap, GINT_TO_POINTER(jb->job_id), jbc);
   }
   return (void*)&result;
 }
