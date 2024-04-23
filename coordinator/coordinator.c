@@ -196,6 +196,7 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
   printf("Received get task request\n");
   GList *iter;
   struct assigned_job *curr;
+  result.wait = false;
   /* first check if any tasks can be taken up that had previously timed out */
   for (iter = state->assigned_list; iter != NULL; iter = iter->next) {
     curr = iter->data;
@@ -208,7 +209,6 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
       result.n_map = curr->n_map;
       result.n_reduce = curr->n_reduce;
       result.reduce = curr->reduce;
-      result.wait = false;
       result.args.args_len = curr->args->args_len;
       result.args.args_val = strdup(curr->args->args_val);
       curr->start = time(NULL);
@@ -224,7 +224,6 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
       jb->num_mapped_assigned += 1;
       result.file = strdup(jb->files->files_val[result.task]);
       result.reduce = false;
-      result.wait = false;
       update_res(&result, jb);
       insert_assigned(jb, result.task, false);
       return &result;
@@ -235,7 +234,6 @@ get_task_reply* get_task_1_svc(void* argp, struct svc_req* rqstp) {
       jb->num_reduce_assigned += 1;
       result.file = "";
       result.reduce = true;
-      result.wait = false;
       update_res(&result, jb);
       insert_assigned(jb, result.task, true);
       return &result;
@@ -276,10 +274,6 @@ GList* get_iter_assigned(int job_id, int task_id) {
 void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   
   static char* result;
-  struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(argp->job_id));
-  if (jbc->done) {
-    return (void*)&result;
-  }
   printf("Received finish task request\n");
   GList *iter = get_iter(argp->job_id);
   /* in the case where a task has already failed for this job */
@@ -288,9 +282,9 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   }
   GList *iter2 = get_iter_assigned(argp->job_id, argp->task);
   if (iter2) { 
+    /* remove the task from currently running tasks */
     state->assigned_list = g_list_delete_link(state->assigned_list, iter2);
   } else { 
-    /* case where we re-assigned this task */
     return (void*)&result;
   }
   struct job_info *jb = iter->data;
@@ -298,9 +292,11 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
     struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
     jbc->done = true;
     jbc->failed = true;
-    /* remove from list of jobs so no other workers get it assigned to them*/
+    /* remove all running tasks that are under this job that way they cannot get reassigned */
     clean_assigned_list(argp->job_id);
+    /*remove job from list of possible jobs to get queued up for */
     g_queue_delete_link(state->job_queue, iter);
+    /* in reality, this is unecessary */
     g_hash_table_insert(state->hashmap, GINT_TO_POINTER(jb->job_id), jbc);
     return (void*)&result;
   }
@@ -310,7 +306,7 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
     jb->num_reduce_completed += 1;
   }
   if (jb->num_reduce_completed == jb->n_reduce) {
-    /* remove from list*/
+    /* remove from list of possible jobs */
     g_queue_delete_link(state->job_queue, iter);
     struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(jb->job_id));
     jbc->done = true;
@@ -318,16 +314,6 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
     g_hash_table_insert(state->hashmap, GINT_TO_POINTER(jb->job_id), jbc);
   }
   return (void*)&result;
-}
-void free_jb_struct(struct job_info *jb) {
-  free(jb->output_dir);
-  free(jb->app);
-  for (int i = 0; i < jb->files->files_len; i++) {
-    free(jb->files->files_val[i]);
-  }
-  free(jb->files);
-  free(jb->args->args_val);
-  free(jb);
 }
 
 /* Initialize coordinator state. */
