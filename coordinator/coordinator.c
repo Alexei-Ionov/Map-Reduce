@@ -278,6 +278,9 @@ void* finish_task_1_svc(finish_task_request* argp, struct svc_req* rqstp) {
   GList *iter = get_iter(argp->job_id);
   /* in the case where a task has already failed for this job */
   if (iter == NULL) {
+    struct job_info_client* jbc = g_hash_table_lookup(state->hashmap, GINT_TO_POINTER(argp->job_id));
+    jbc->done = true;
+    jbc->failed = true;
     return (void*)&result;
   }
   GList *iter2 = get_iter_assigned(argp->job_id, argp->task);
