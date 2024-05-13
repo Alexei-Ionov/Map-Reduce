@@ -80,7 +80,7 @@ int* submit_job_1_svc(submit_job_request* argp, struct svc_req* rqstp) {
   if (stat(argp->output_dir, &st) == -1) {
     mkdirp(argp->output_dir);
   }
-  /* if app isn't valid */
+  /* if the app isn't valid */
   app res = get_app(argp->app);
   if (res.name == NULL && res.map == NULL && res.reduce == NULL && res.process_output == NULL) {
     result = -1;
