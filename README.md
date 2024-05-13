@@ -1,0 +1,4 @@
+MapReduce is a programming model for scalable and highly parallelized data processing. It abstracts away the complexities of developing a fault tolerant distributed system by exposing a simple API where the user specifies two functions:
+map: produces a set of key/value pairs from the input data
+reduce: combines values corresponding to the same key
+With these functions, tasks can be automatically parallelized and executed on a cluster. This paradigm is particularly powerful since it allows programmers with little background in distributed systems to write parallelizable code for a wide variety of real world tasks. This project is a fault tolerant MapReduce system in C which contains a coordinator process that distributes tasks to worker processes that carry out the actual computation. It also handles worker failure by implementing task redistribution. 
